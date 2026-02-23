@@ -14,8 +14,11 @@ export default function LoginScreen() {
       >
         <View style={styles.content}>
           <View style={styles.logoContainer}>
-            <Ionicons name="beer" size={80} color="#FFF" />
-            <Text style={styles.title}>CLUBIN INDIA</Text>
+            <Image 
+              source={require('../assets/images/logo.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={styles.subtitle}>Discover & Book Night Clubs</Text>
           </View>
 
