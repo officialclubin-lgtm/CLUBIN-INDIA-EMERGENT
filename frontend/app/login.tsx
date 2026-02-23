@@ -55,6 +55,10 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
   },
+  logo: {
+    width: 280,
+    height: 280,
+  },
   title: {
     fontSize: 36,
     fontWeight: 'bold',
@@ -64,7 +68,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#E9D5FF',
-    marginTop: 8,
+    marginTop: 16,
   },
   buttonContainer: {
     alignItems: 'center',
