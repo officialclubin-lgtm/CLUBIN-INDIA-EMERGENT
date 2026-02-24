@@ -1,19 +1,23 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Response, Depends, File, UploadFile, Form
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone, timedelta
 import httpx
 import razorpay
 import qrcode
+from qrcode.image.pil import PilImage
 import io
 import base64
+from PIL import Image, ImageDraw, ImageFont
+import json
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -23,16 +27,14 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Razorpay client (will be initialized with actual keys)
+# Razorpay client
 razorpay_client = None
 
-# Create the main app without a prefix
+# Create the main app
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-# ============ MODELS ============
+# ============ ENHANCED MODELS ============
 
 class User(BaseModel):
     user_id: str
@@ -40,7 +42,27 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = None
     phone: Optional[str] = None
+    age: Optional[int] = None
+    date_of_birth: Optional[str] = None
+    id_card_type: Optional[str] = None  # aadhaar, pan, driving_license, passport, voter_id
+    id_card_number: Optional[str] = None
+    id_card_image: Optional[str] = None  # base64
+    is_verified: bool = False
+    verification_status: str = "pending"  # pending, verified, rejected
+    terms_accepted: bool = False
+    location: Optional[dict] = None  # {city, state, latitude, longitude}
     created_at: datetime
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    age: Optional[int] = None
+    date_of_birth: Optional[str] = None
+    id_card_type: Optional[str] = None
+    id_card_number: Optional[str] = None
+    id_card_image: Optional[str] = None
+    terms_accepted: Optional[bool] = None
+    location: Optional[dict] = None
 
 class SessionDataResponse(BaseModel):
     id: str
@@ -49,50 +71,103 @@ class SessionDataResponse(BaseModel):
     picture: Optional[str] = None
     session_token: str
 
+class Event(BaseModel):
+    event_id: str
+    title: str
+    club_id: str
+    club_name: str
+    description: str
+    flyer_image: Optional[str] = None  # base64
+    layout_image: Optional[str] = None  # base64
+    video_url: Optional[str] = None
+    event_date: str
+    event_time: str
+    event_day: str
+    artists: List[dict] = []  # [{name, role, image}]
+    organized_by: Optional[str] = None
+    promoted_by: Optional[str] = None
+    sponsored_by: List[str] = []
+    ticket_price: float
+    available_tickets: int
+    is_promoted: bool = False
+    is_featured: bool = False
+    category: str = "general"  # general, ladies_night, live_performance, theme_party
+    created_at: datetime
+
+class EventCreate(BaseModel):
+    title: str
+    club_id: str
+    description: str
+    flyer_image: Optional[str] = None
+    layout_image: Optional[str] = None
+    video_url: Optional[str] = None
+    event_date: str
+    event_time: str
+    artists: List[dict] = []
+    organized_by: Optional[str] = None
+    promoted_by: Optional[str] = None
+    sponsored_by: List[str] = []
+    ticket_price: float
+    available_tickets: int
+    is_promoted: bool = False
+    is_featured: bool = False
+    category: str = "general"
+
 class Club(BaseModel):
     club_id: str
     name: str
     city: str
+    state: Optional[str] = None
     address: str
     description: str
-    images: List[str]  # base64 images
+    images: List[str] = []  # base64 images
     entry_price_male: float
     entry_price_female: float
     entry_price_couple: float
-    events: List[dict] = []  # {title, date, dj_name, description}
     available_slots: int
     rating: float = 4.0
+    total_ratings: int = 0
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    is_featured: bool = False
+    is_promoted: bool = False
+    amenities: List[str] = []
     created_at: datetime
 
 class ClubCreate(BaseModel):
     name: str
     city: str
+    state: Optional[str] = None
     address: str
     description: str
-    images: List[str]
+    images: List[str] = []
     entry_price_male: float
     entry_price_female: float
     entry_price_couple: float
-    events: List[dict] = []
     available_slots: int
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    is_featured: bool = False
+    is_promoted: bool = False
+    amenities: List[str] = []
 
 class Booking(BaseModel):
     booking_id: str
     user_id: str
+    user_name: str
+    user_email: str
     club_id: str
     club_name: str
-    entry_type: str  # male, female, couple
+    entry_type: str
     quantity: int
     total_amount: float
     booking_date: datetime
     entry_date: str
-    status: str  # pending, confirmed, cancelled, completed
+    entry_time: Optional[str] = None
+    status: str
     payment_id: Optional[str] = None
-    qr_code: Optional[str] = None  # base64 QR code
+    qr_code: Optional[str] = None  # base64 golden QR code
+    notification_sent: bool = False
     created_at: datetime
 
 class BookingCreate(BaseModel):
@@ -100,6 +175,7 @@ class BookingCreate(BaseModel):
     entry_type: str
     quantity: int
     entry_date: str
+    entry_time: Optional[str] = None
     promo_code: Optional[str] = None
 
 class PaymentOrder(BaseModel):
@@ -111,22 +187,113 @@ class PaymentVerification(BaseModel):
     razorpay_signature: str
     booking_id: str
 
+class NotificationRequest(BaseModel):
+    booking_id: str
+    send_email: bool = True
+    send_whatsapp: bool = True
+
+# ============ HELPER FUNCTIONS ============
+
+def generate_golden_qr(data: str, booking_details: dict) -> str:
+    """Generate a golden-colored QR code with white booking details"""
+    # Create QR code
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    
+    # Create QR image with golden color
+    qr_img = qr.make_image(fill_color="#D4AF37", back_color="black")
+    
+    # Create larger canvas for QR + details
+    width, height = qr_img.size
+    canvas_height = height + 250  # Extra space for details
+    canvas = Image.new('RGB', (width, canvas_height), color='black')
+    
+    # Paste QR code
+    canvas.paste(qr_img, (0, 0))
+    
+    # Add booking details in white text
+    draw = ImageDraw.Draw(canvas)
+    
+    # Try to use a nice font, fallback to default
+    try:
+        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
+    except:
+        font_large = ImageFont.load_default()
+        font_medium = ImageFont.load_default()
+    
+    y_offset = height + 20
+    golden = "#D4AF37"
+    white = "#FFFFFF"
+    
+    # Draw details
+    details = [
+        ("BOOKING ID:", booking_details.get('booking_id', 'N/A'), golden),
+        ("Customer:", booking_details.get('user_name', 'N/A'), white),
+        ("Club:", booking_details.get('club_name', 'N/A'), white),
+        ("Date:", booking_details.get('entry_date', 'N/A'), white),
+        ("Time:", booking_details.get('entry_time', 'N/A'), white),
+        ("Type:", f"{booking_details.get('quantity', 0)}x {booking_details.get('entry_type', 'N/A').title()}", white),
+    ]
+    
+    for label, value, color in details:
+        text = f"{label} {value}"
+        draw.text((10, y_offset), text, fill=color, font=font_medium)
+        y_offset += 30
+    
+    # Convert to base64
+    buffer = io.BytesIO()
+    canvas.save(buffer, format='PNG')
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+    
+    return qr_base64
+
+async def send_notification(booking: dict, notification_type: str = "booking_confirmation"):
+    """Send email and WhatsApp notifications"""
+    # This is a placeholder for notification logic
+    # In production, integrate with SendGrid, Twilio, etc.
+    
+    try:
+        # Email notification (placeholder)
+        if os.getenv('SENDGRID_API_KEY'):
+            # TODO: Implement SendGrid email
+            pass
+        
+        # WhatsApp notification (placeholder)
+        if os.getenv('TWILIO_ACCOUNT_SID') and os.getenv('TWILIO_AUTH_TOKEN'):
+            # TODO: Implement Twilio WhatsApp
+            pass
+        
+        # Mark notification as sent
+        await db.bookings.update_one(
+            {"booking_id": booking['booking_id']},
+            {"$set": {"notification_sent": True}}
+        )
+        
+        logging.info(f"Notifications sent for booking {booking['booking_id']}")
+        return True
+    except Exception as e:
+        logging.error(f"Error sending notification: {e}")
+        return False
+
 # ============ AUTH HELPERS ============
 
 async def get_current_user(authorization: Optional[str] = Header(None)) -> Optional[User]:
-    """Get current authenticated user from session token"""
     if not authorization:
         return None
     
-    # Extract token from "Bearer <token>" format
     token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
     
-    # Find session
     session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
     if not session:
         return None
     
-    # Check if session is expired
     expires_at = session["expires_at"]
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
@@ -134,7 +301,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Optio
     if expires_at < datetime.now(timezone.utc):
         return None
     
-    # Find user
     user_doc = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
     if not user_doc:
         return None
@@ -142,22 +308,25 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Optio
     return User(**user_doc)
 
 async def require_auth(authorization: Optional[str] = Header(None)) -> User:
-    """Dependency that requires authentication"""
     user = await get_current_user(authorization)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    return user
+
+async def require_verified_user(authorization: Optional[str] = Header(None)) -> User:
+    user = await require_auth(authorization)
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Account not verified. Please complete your profile with age verification and ID proof.")
     return user
 
 # ============ AUTH ENDPOINTS ============
 
 @api_router.post("/auth/session")
 async def create_session(request: Request):
-    """Exchange session_id for session data"""
     session_id = request.headers.get("X-Session-ID")
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID required")
     
-    # Call Emergent Auth API
     async with httpx.AsyncClient() as client:
         response = await client.get(
             "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
@@ -169,11 +338,9 @@ async def create_session(request: Request):
         
         user_data = response.json()
     
-    # Check if user exists
     existing_user = await db.users.find_one({"email": user_data["email"]}, {"_id": 0})
     
     if not existing_user:
-        # Create new user
         user_id = f"user_{uuid.uuid4().hex[:12]}"
         await db.users.insert_one({
             "user_id": user_id,
@@ -181,12 +348,20 @@ async def create_session(request: Request):
             "name": user_data["name"],
             "picture": user_data.get("picture"),
             "phone": None,
+            "age": None,
+            "date_of_birth": None,
+            "id_card_type": None,
+            "id_card_number": None,
+            "id_card_image": None,
+            "is_verified": False,
+            "verification_status": "pending",
+            "terms_accepted": False,
+            "location": None,
             "created_at": datetime.now(timezone.utc)
         })
     else:
         user_id = existing_user["user_id"]
     
-    # Create session
     session_token = user_data["session_token"]
     await db.user_sessions.insert_one({
         "user_id": user_id,
@@ -199,18 +374,42 @@ async def create_session(request: Request):
 
 @api_router.get("/auth/me")
 async def get_me(current_user: User = Depends(require_auth)):
-    """Get current user info"""
     return current_user
+
+@api_router.put("/auth/profile")
+async def update_profile(profile: UserProfileUpdate, current_user: User = Depends(require_auth)):
+    """Update user profile with age verification and ID proof"""
+    update_data = profile.dict(exclude_none=True)
+    
+    # Check age requirement
+    if 'age' in update_data and update_data['age'] < 21:
+        raise HTTPException(status_code=400, detail="You must be 21 years or older to use this service")
+    
+    # If ID card info is provided, mark as pending verification
+    if 'id_card_image' in update_data:
+        update_data['verification_status'] = 'pending'
+        update_data['is_verified'] = False
+    
+    # Auto-verify if all required fields are present (in production, this would be manual/OCR)
+    if all(key in update_data for key in ['age', 'id_card_type', 'id_card_number', 'id_card_image', 'terms_accepted']):
+        if update_data.get('age', 0) >= 21 and update_data.get('terms_accepted'):
+            update_data['is_verified'] = True
+            update_data['verification_status'] = 'verified'
+    
+    await db.users.update_one(
+        {"user_id": current_user.user_id},
+        {"$set": update_data}
+    )
+    
+    updated_user = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
+    return User(**updated_user)
 
 @api_router.post("/auth/logout")
 async def logout(authorization: Optional[str] = Header(None)):
-    """Logout user"""
     if not authorization:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
-    
-    # Delete session
     await db.user_sessions.delete_one({"session_token": token})
     
     return {"message": "Logged out successfully"}
@@ -218,8 +417,13 @@ async def logout(authorization: Optional[str] = Header(None)):
 # ============ CLUB ENDPOINTS ============
 
 @api_router.get("/clubs", response_model=List[Club])
-async def get_clubs(city: Optional[str] = None, search: Optional[str] = None):
-    """Get all clubs with optional filters"""
+async def get_clubs(
+    city: Optional[str] = None,
+    search: Optional[str] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+    featured: Optional[bool] = None
+):
     query = {}
     
     if city:
@@ -228,12 +432,46 @@ async def get_clubs(city: Optional[str] = None, search: Optional[str] = None):
     if search:
         query["name"] = {"$regex": search, "$options": "i"}
     
+    if featured is not None:
+        query["is_featured"] = featured
+    
     clubs = await db.clubs.find(query, {"_id": 0}).to_list(1000)
+    
+    # Calculate distance if location provided
+    if latitude and longitude:
+        from math import radians, sin, cos, sqrt, atan2
+        
+        def calculate_distance(lat1, lon1, lat2, lon2):
+            R = 6371  # Earth's radius in km
+            dlat = radians(lat2 - lat1)
+            dlon = radians(lon2 - lon1)
+            a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+            c = 2 * atan2(sqrt(a), sqrt(1-a))
+            return R * c
+        
+        for club in clubs:
+            if club.get('latitude') and club.get('longitude'):
+                club['distance'] = calculate_distance(
+                    latitude, longitude,
+                    club['latitude'], club['longitude']
+                )
+        
+        clubs.sort(key=lambda x: x.get('distance', float('inf')))
+    
+    return [Club(**club) for club in clubs]
+
+@api_router.get("/clubs/featured")
+async def get_featured_clubs():
+    """Get featured/promoted clubs for homepage carousel"""
+    clubs = await db.clubs.find(
+        {"$or": [{"is_featured": True}, {"is_promoted": True}]},
+        {"_id": 0}
+    ).sort("rating", -1).limit(10).to_list(10)
+    
     return [Club(**club) for club in clubs]
 
 @api_router.get("/clubs/{club_id}", response_model=Club)
 async def get_club(club_id: str):
-    """Get single club details"""
     club = await db.clubs.find_one({"club_id": club_id}, {"_id": 0})
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
@@ -241,13 +479,13 @@ async def get_club(club_id: str):
 
 @api_router.post("/clubs", response_model=Club)
 async def create_club(club_data: ClubCreate, current_user: User = Depends(require_auth)):
-    """Create a new club (admin only for now)"""
     club_id = f"club_{uuid.uuid4().hex[:12]}"
     
     club = {
         "club_id": club_id,
         **club_data.dict(),
         "rating": 4.0,
+        "total_ratings": 0,
         "created_at": datetime.now(timezone.utc)
     }
     
@@ -256,21 +494,93 @@ async def create_club(club_data: ClubCreate, current_user: User = Depends(requir
 
 @api_router.get("/cities")
 async def get_cities():
-    """Get list of available cities"""
     cities = await db.clubs.distinct("city")
-    return {"cities": cities}
+    return {"cities": sorted(cities)}
+
+# ============ EVENT ENDPOINTS ============
+
+@api_router.get("/events", response_model=List[Event])
+async def get_events(
+    club_id: Optional[str] = None,
+    city: Optional[str] = None,
+    featured: Optional[bool] = None,
+    category: Optional[str] = None
+):
+    query = {}
+    
+    if club_id:
+        query["club_id"] = club_id
+    
+    if featured is not None:
+        query["is_featured"] = featured
+    
+    if category:
+        query["category"] = category
+    
+    events = await db.events.find(query, {"_id": 0}).sort("event_date", 1).to_list(1000)
+    
+    # Filter by city if provided
+    if city:
+        event_club_ids = [e['club_id'] for e in events]
+        clubs = await db.clubs.find({"club_id": {"$in": event_club_ids}, "city": city}, {"_id": 0}).to_list(1000)
+        club_ids_in_city = {c['club_id'] for c in clubs}
+        events = [e for e in events if e['club_id'] in club_ids_in_city]
+    
+    return [Event(**event) for event in events]
+
+@api_router.get("/events/featured")
+async def get_featured_events():
+    """Get featured/promoted events for homepage carousel"""
+    events = await db.events.find(
+        {"$or": [{"is_featured": True}, {"is_promoted": True}]},
+        {"_id": 0}
+    ).sort("event_date", 1).limit(10).to_list(10)
+    
+    return [Event(**event) for event in events]
+
+@api_router.get("/events/{event_id}", response_model=Event)
+async def get_event(event_id: str):
+    event = await db.events.find_one({"event_id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return Event(**event)
+
+@api_router.post("/events", response_model=Event)
+async def create_event(event_data: EventCreate, current_user: User = Depends(require_auth)):
+    # Get club details
+    club = await db.clubs.find_one({"club_id": event_data.club_id}, {"_id": 0})
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+    
+    # Parse date to get day
+    from datetime import datetime as dt
+    try:
+        event_datetime = dt.strptime(event_data.event_date, "%Y-%m-%d")
+        event_day = event_datetime.strftime("%A")
+    except:
+        event_day = "TBD"
+    
+    event_id = f"event_{uuid.uuid4().hex[:12]}"
+    
+    event = {
+        "event_id": event_id,
+        "club_name": club['name'],
+        **event_data.dict(),
+        "event_day": event_day,
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.events.insert_one(event)
+    return Event(**event)
 
 # ============ BOOKING ENDPOINTS ============
 
 @api_router.post("/bookings", response_model=Booking)
-async def create_booking(booking_data: BookingCreate, current_user: User = Depends(require_auth)):
-    """Create a new booking"""
-    # Get club details
+async def create_booking(booking_data: BookingCreate, current_user: User = Depends(require_verified_user)):
     club = await db.clubs.find_one({"club_id": booking_data.club_id}, {"_id": 0})
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
     
-    # Calculate total amount
     price_map = {
         "male": club["entry_price_male"],
         "female": club["entry_price_female"],
@@ -279,7 +589,6 @@ async def create_booking(booking_data: BookingCreate, current_user: User = Depen
     
     total_amount = price_map[booking_data.entry_type] * booking_data.quantity
     
-    # Apply promo code if any
     if booking_data.promo_code:
         # TODO: Implement promo code logic
         pass
@@ -289,6 +598,8 @@ async def create_booking(booking_data: BookingCreate, current_user: User = Depen
     booking = {
         "booking_id": booking_id,
         "user_id": current_user.user_id,
+        "user_name": current_user.name,
+        "user_email": current_user.email,
         "club_id": booking_data.club_id,
         "club_name": club["name"],
         "entry_type": booking_data.entry_type,
@@ -296,9 +607,11 @@ async def create_booking(booking_data: BookingCreate, current_user: User = Depen
         "total_amount": total_amount,
         "booking_date": datetime.now(timezone.utc),
         "entry_date": booking_data.entry_date,
+        "entry_time": booking_data.entry_time or "09:00 PM",
         "status": "pending",
         "payment_id": None,
         "qr_code": None,
+        "notification_sent": False,
         "created_at": datetime.now(timezone.utc)
     }
     
@@ -307,9 +620,8 @@ async def create_booking(booking_data: BookingCreate, current_user: User = Depen
 
 @api_router.get("/bookings", response_model=List[Booking])
 async def get_bookings(current_user: User = Depends(require_auth)):
-    """Get user's bookings"""
     bookings = await db.bookings.find(
-        {"user_id": current_user.user_id}, 
+        {"user_id": current_user.user_id},
         {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
     
@@ -317,9 +629,8 @@ async def get_bookings(current_user: User = Depends(require_auth)):
 
 @api_router.get("/bookings/{booking_id}", response_model=Booking)
 async def get_booking(booking_id: str, current_user: User = Depends(require_auth)):
-    """Get single booking details"""
     booking = await db.bookings.find_one(
-        {"booking_id": booking_id, "user_id": current_user.user_id}, 
+        {"booking_id": booking_id, "user_id": current_user.user_id},
         {"_id": 0}
     )
     if not booking:
@@ -328,9 +639,8 @@ async def get_booking(booking_id: str, current_user: User = Depends(require_auth
 
 @api_router.post("/bookings/{booking_id}/cancel")
 async def cancel_booking(booking_id: str, current_user: User = Depends(require_auth)):
-    """Cancel a booking"""
     booking = await db.bookings.find_one(
-        {"booking_id": booking_id, "user_id": current_user.user_id}, 
+        {"booking_id": booking_id, "user_id": current_user.user_id},
         {"_id": 0}
     )
     
@@ -354,8 +664,6 @@ async def cancel_booking(booking_id: str, current_user: User = Depends(require_a
 
 @api_router.post("/payment/create-order")
 async def create_payment_order(payment_data: PaymentOrder, current_user: User = Depends(require_auth)):
-    """Create Razorpay order for booking"""
-    # Get booking
     booking = await db.bookings.find_one(
         {"booking_id": payment_data.booking_id, "user_id": current_user.user_id},
         {"_id": 0}
@@ -367,8 +675,6 @@ async def create_payment_order(payment_data: PaymentOrder, current_user: User = 
     if booking["status"] != "pending":
         raise HTTPException(status_code=400, detail="Booking is not in pending status")
     
-    # For demo purposes, we'll return mock data if Razorpay is not configured
-    # In production, use actual Razorpay client
     amount_in_paise = int(booking["total_amount"] * 100)
     
     try:
@@ -377,17 +683,13 @@ async def create_payment_order(payment_data: PaymentOrder, current_user: User = 
                 "amount": amount_in_paise,
                 "currency": "INR",
                 "payment_capture": 1,
-                "notes": {
-                    "booking_id": payment_data.booking_id
-                }
+                "notes": {"booking_id": payment_data.booking_id}
             })
             order_id = razor_order["id"]
         else:
-            # Mock order for testing
             order_id = f"order_mock_{uuid.uuid4().hex[:12]}"
     except Exception as e:
         logging.error(f"Error creating Razorpay order: {e}")
-        # Return mock order for demo
         order_id = f"order_mock_{uuid.uuid4().hex[:12]}"
     
     return {
@@ -400,8 +702,6 @@ async def create_payment_order(payment_data: PaymentOrder, current_user: User = 
 
 @api_router.post("/payment/verify")
 async def verify_payment(verification: PaymentVerification, current_user: User = Depends(require_auth)):
-    """Verify Razorpay payment and update booking"""
-    # Get booking
     booking = await db.bookings.find_one(
         {"booking_id": verification.booking_id, "user_id": current_user.user_id},
         {"_id": 0}
@@ -410,22 +710,20 @@ async def verify_payment(verification: PaymentVerification, current_user: User =
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
     
-    # For demo purposes, we'll skip actual verification if Razorpay is not configured
-    # In production, verify signature using Razorpay client
-    
-    # Generate QR code
+    # Generate golden QR code with booking details
     qr_data = f"CLUBIN:{verification.booking_id}:{booking['club_id']}:{booking['entry_date']}:{booking['quantity']}"
     
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(qr_data)
-    qr.make(fit=True)
+    booking_details = {
+        'booking_id': booking['booking_id'],
+        'user_name': booking['user_name'],
+        'club_name': booking['club_name'],
+        'entry_date': booking['entry_date'],
+        'entry_time': booking.get('entry_time', '09:00 PM'),
+        'quantity': booking['quantity'],
+        'entry_type': booking['entry_type']
+    }
     
-    img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Convert to base64
-    buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
-    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+    qr_base64 = generate_golden_qr(qr_data, booking_details)
     
     # Update booking
     await db.bookings.update_one(
@@ -437,6 +735,10 @@ async def verify_payment(verification: PaymentVerification, current_user: User =
         }}
     )
     
+    # Send notifications
+    updated_booking = await db.bookings.find_one({"booking_id": verification.booking_id}, {"_id": 0})
+    await send_notification(updated_booking, "booking_confirmation")
+    
     return {
         "message": "Payment verified successfully",
         "booking_id": verification.booking_id,
@@ -444,13 +746,29 @@ async def verify_payment(verification: PaymentVerification, current_user: User =
         "qr_code": qr_base64
     }
 
+# ============ NOTIFICATION ENDPOINT ============
+
+@api_router.post("/notifications/send")
+async def send_booking_notification(notification: NotificationRequest, current_user: User = Depends(require_auth)):
+    """Manually trigger notification for a booking"""
+    booking = await db.bookings.find_one({"booking_id": notification.booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    success = await send_notification(booking, "booking_confirmation")
+    
+    return {
+        "message": "Notification sent successfully" if success else "Notification failed",
+        "booking_id": notification.booking_id
+    }
+
 # ============ GENERAL ENDPOINTS ============
 
 @api_router.get("/")
 async def root():
-    return {"message": "CLUBIN INDIA API - Customer App"}
+    return {"message": "CLUBIN INDIA API - Customer App v2.0", "status": "running"}
 
-# Include the router in the main app
+# Include router
 app.include_router(api_router)
 
 app.add_middleware(
@@ -461,7 +779,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -470,10 +787,8 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize on startup"""
     global razorpay_client
     
-    # Initialize Razorpay if keys are available
     razorpay_key_id = os.getenv("RAZORPAY_KEY_ID")
     razorpay_key_secret = os.getenv("RAZORPAY_KEY_SECRET")
     
