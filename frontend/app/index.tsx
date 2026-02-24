@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { Colors } from '../constants/Colors';
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -10,7 +11,12 @@ export default function Index() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        router.replace('/(tabs)/home');
+        // Check if user profile is complete
+        if (!user.is_verified && !user.terms_accepted) {
+          router.replace('/complete-profile');
+        } else {
+          router.replace('/(tabs)/home');
+        }
       } else {
         router.replace('/login');
       }
@@ -19,7 +25,7 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#8B5CF6" />
+      <ActivityIndicator size="large" color={Colors.primary} />
     </View>
   );
 }
@@ -27,7 +33,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
