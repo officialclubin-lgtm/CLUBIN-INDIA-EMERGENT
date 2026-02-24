@@ -14,18 +14,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-import QRCode from 'react-native-qrcode-svg';
+import { Colors } from '../../constants/Colors';
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 interface Booking {
   booking_id: string;
+  user_name: string;
   club_name: string;
   club_id: string;
   entry_type: string;
   quantity: number;
   total_amount: number;
   entry_date: string;
+  entry_time: string;
   status: string;
   payment_id?: string;
   qr_code?: string;
@@ -100,15 +102,15 @@ export default function BookingDetailScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed':
-        return '#10B981';
+        return Colors.success;
       case 'pending':
-        return '#F59E0B';
+        return Colors.warning;
       case 'cancelled':
-        return '#EF4444';
+        return Colors.error;
       case 'completed':
-        return '#6B7280';
+        return Colors.completed;
       default:
-        return '#9CA3AF';
+        return Colors.textMuted;
     }
   };
 
@@ -130,7 +132,7 @@ export default function BookingDetailScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
@@ -147,7 +149,7 @@ export default function BookingDetailScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#FFF" />
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Booking Details</Text>
         <View style={styles.placeholder} />
@@ -158,7 +160,7 @@ export default function BookingDetailScreen() {
           <View
             style={[
               styles.statusBadge,
-              { backgroundColor: `${getStatusColor(booking.status)}20` },
+              { backgroundColor: `${getStatusColor(booking.status)}15` },
             ]}
           >
             <Ionicons
@@ -178,7 +180,7 @@ export default function BookingDetailScreen() {
           <View style={styles.detailsSection}>
             <View style={styles.detailRow}>
               <View style={styles.detailIcon}>
-                <Ionicons name="calendar" size={20} color="#8B5CF6" />
+                <Ionicons name="calendar" size={20} color={Colors.primary} />
               </View>
               <View>
                 <Text style={styles.detailLabel}>Entry Date</Text>
@@ -188,7 +190,17 @@ export default function BookingDetailScreen() {
 
             <View style={styles.detailRow}>
               <View style={styles.detailIcon}>
-                <Ionicons name="people" size={20} color="#8B5CF6" />
+                <Ionicons name="time" size={20} color={Colors.primary} />
+              </View>
+              <View>
+                <Text style={styles.detailLabel}>Entry Time</Text>
+                <Text style={styles.detailValue}>{booking.entry_time}</Text>
+              </View>
+            </View>
+
+            <View style={styles.detailRow}>
+              <View style={styles.detailIcon}>
+                <Ionicons name="people" size={20} color={Colors.primary} />
               </View>
               <View>
                 <Text style={styles.detailLabel}>Entry Type & Quantity</Text>
@@ -200,7 +212,7 @@ export default function BookingDetailScreen() {
 
             <View style={styles.detailRow}>
               <View style={styles.detailIcon}>
-                <Ionicons name="card" size={20} color="#8B5CF6" />
+                <Ionicons name="card" size={20} color={Colors.primary} />
               </View>
               <View>
                 <Text style={styles.detailLabel}>Total Amount</Text>
@@ -210,7 +222,7 @@ export default function BookingDetailScreen() {
 
             <View style={styles.detailRow}>
               <View style={styles.detailIcon}>
-                <Ionicons name="receipt" size={20} color="#8B5CF6" />
+                <Ionicons name="receipt" size={20} color={Colors.primary} />
               </View>
               <View>
                 <Text style={styles.detailLabel}>Booking ID</Text>
@@ -224,17 +236,21 @@ export default function BookingDetailScreen() {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Entry QR Code</Text>
             <Text style={styles.qrDescription}>
-              Show this QR code at the club entrance for verification
+              Show this golden QR code at the club entrance for verification
             </Text>
             <View style={styles.qrContainer}>
               <Image
                 source={{ uri: `data:image/png;base64,${booking.qr_code}` }}
                 style={styles.qrImage}
+                resizeMode="contain"
               />
             </View>
-            <Text style={styles.qrNote}>
-              Screenshot this code or show it directly from the app
-            </Text>
+            <View style={styles.qrNote}>
+              <Ionicons name="information-circle" size={20} color={Colors.primary} />
+              <Text style={styles.qrNoteText}>
+                Screenshot this code or show it directly from the app
+              </Text>
+            </View>
           </View>
         )}
 
@@ -245,10 +261,10 @@ export default function BookingDetailScreen() {
             disabled={cancelling}
           >
             {cancelling ? (
-              <ActivityIndicator color="#EF4444" />
+              <ActivityIndicator color={Colors.error} />
             ) : (
               <>
-                <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
+                <Ionicons name="close-circle-outline" size={20} color={Colors.error} />
                 <Text style={styles.cancelButtonText}>Cancel Booking</Text>
               </>
             )}
@@ -257,7 +273,7 @@ export default function BookingDetailScreen() {
 
         {booking.status === 'pending' && (
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={24} color="#F59E0B" />
+            <Ionicons name="information-circle" size={24} color={Colors.warning} />
             <Text style={styles.infoText}>
               Your booking is pending. Complete the payment to confirm your entry.
             </Text>
@@ -266,7 +282,7 @@ export default function BookingDetailScreen() {
 
         {booking.status === 'cancelled' && (
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={24} color="#EF4444" />
+            <Ionicons name="information-circle" size={24} color={Colors.error} />
             <Text style={styles.infoText}>
               This booking has been cancelled. Refund will be processed within 5-7 business days.
             </Text>
@@ -280,22 +296,22 @@ export default function BookingDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A0A0A',
+    backgroundColor: Colors.background,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A0A0A',
+    backgroundColor: Colors.background,
   },
   errorText: {
-    color: '#FFF',
+    color: Colors.text,
     fontSize: 18,
   },
   header: {
@@ -304,7 +320,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1F1F1F',
+    borderBottomColor: Colors.border,
   },
   backButton: {
     padding: 4,
@@ -312,7 +328,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: Colors.primary,
   },
   placeholder: {
     width: 32,
@@ -322,10 +338,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   card: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -344,7 +362,7 @@ const styles = StyleSheet.create({
   clubName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: Colors.text,
     marginBottom: 24,
   },
   detailsSection: {
@@ -359,79 +377,93 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#8B5CF620',
+    backgroundColor: Colors.backgroundDark,
+    borderWidth: 1,
+    borderColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   detailLabel: {
-    color: '#9CA3AF',
+    color: Colors.textSecondary,
     fontSize: 12,
     marginBottom: 4,
   },
   detailValue: {
-    color: '#FFF',
+    color: Colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: Colors.primary,
     marginBottom: 8,
   },
   qrDescription: {
-    color: '#9CA3AF',
+    color: Colors.textSecondary,
     fontSize: 14,
     marginBottom: 16,
   },
   qrContainer: {
-    backgroundColor: '#FFF',
-    padding: 24,
+    backgroundColor: Colors.background,
+    padding: 16,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   qrImage: {
-    width: 250,
-    height: 250,
+    width: 280,
+    height: 350,
   },
   qrNote: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    textAlign: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginTop: 16,
+    padding: 12,
+    backgroundColor: Colors.backgroundDark,
+    borderRadius: 8,
+  },
+  qrNoteText: {
+    flex: 1,
+    color: Colors.textSecondary,
+    fontSize: 12,
   },
   cancelButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: Colors.backgroundCard,
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#EF4444',
+    borderColor: Colors.error,
     marginBottom: 16,
   },
   cancelButtonDisabled: {
     opacity: 0.5,
   },
   cancelButtonText: {
-    color: '#EF4444',
+    color: Colors.error,
     fontSize: 16,
     fontWeight: '600',
   },
   infoBox: {
     flexDirection: 'row',
-    backgroundColor: '#1F1F1F',
+    backgroundColor: Colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     gap: 12,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   infoText: {
     flex: 1,
-    color: '#D1D5DB',
+    color: Colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },

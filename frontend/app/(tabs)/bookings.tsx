@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+import { Colors } from '../../constants/Colors';
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -34,7 +35,6 @@ export default function BookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
 
   useEffect(() => {
     fetchBookings();
@@ -62,15 +62,15 @@ export default function BookingsScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed':
-        return '#10B981';
+        return Colors.success;
       case 'pending':
-        return '#F59E0B';
+        return Colors.warning;
       case 'cancelled':
-        return '#EF4444';
+        return Colors.error;
       case 'completed':
-        return '#6B7280';
+        return Colors.completed;
       default:
-        return '#9CA3AF';
+        return Colors.textMuted;
     }
   };
 
@@ -92,7 +92,7 @@ export default function BookingsScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
@@ -106,12 +106,12 @@ export default function BookingsScreen() {
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
       >
         {bookings.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="ticket-outline" size={64} color="#6B7280" />
+            <Ionicons name="ticket-outline" size={64} color={Colors.textMuted} />
             <Text style={styles.emptyText}>No bookings yet</Text>
             <Text style={styles.emptySubtext}>Start exploring clubs and make your first booking!</Text>
             <TouchableOpacity
@@ -131,11 +131,11 @@ export default function BookingsScreen() {
               >
                 <View style={styles.bookingHeader}>
                   <View style={styles.bookingTitleContainer}>
-                    <Text style={styles.clubName}>{booking.club_name}</Text>
+                    <Text style={styles.clubName} numberOfLines={1}>{booking.club_name}</Text>
                     <View
                       style={[
                         styles.statusBadge,
-                        { backgroundColor: `${getStatusColor(booking.status)}20` },
+                        { backgroundColor: `${getStatusColor(booking.status)}15` },
                       ]}
                     >
                       <Ionicons
@@ -157,11 +157,11 @@ export default function BookingsScreen() {
 
                 <View style={styles.bookingDetails}>
                   <View style={styles.detailRow}>
-                    <Ionicons name="calendar" size={16} color="#9CA3AF" />
+                    <Ionicons name="calendar" size={16} color={Colors.textSecondary} />
                     <Text style={styles.detailText}>{booking.entry_date}</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Ionicons name="people" size={16} color="#9CA3AF" />
+                    <Ionicons name="people" size={16} color={Colors.textSecondary} />
                     <Text style={styles.detailText}>
                       {booking.quantity}x {booking.entry_type}
                     </Text>
@@ -175,7 +175,7 @@ export default function BookingsScreen() {
                   </View>
                   {booking.qr_code && (
                     <View style={styles.qrBadge}>
-                      <Ionicons name="qr-code" size={20} color="#8B5CF6" />
+                      <Ionicons name="qr-code" size={20} color={Colors.primary} />
                       <Text style={styles.qrText}>QR Available</Text>
                     </View>
                   )}
@@ -192,23 +192,23 @@ export default function BookingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A0A0A',
+    backgroundColor: Colors.background,
   },
   header: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1F1F1F',
+    borderBottomColor: Colors.border,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: Colors.primary,
   },
   content: {
     flex: 1,
@@ -220,37 +220,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   emptyText: {
-    color: '#FFF',
+    color: Colors.text,
     fontSize: 18,
     fontWeight: '600',
     marginTop: 16,
   },
   emptySubtext: {
-    color: '#9CA3AF',
+    color: Colors.textSecondary,
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
   },
   exploreButton: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: Colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: 12,
     marginTop: 24,
   },
   exploreButtonText: {
-    color: '#FFF',
+    color: Colors.background,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   bookingsList: {
     padding: 16,
   },
   bookingCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: Colors.backgroundCard,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   bookingHeader: {
     marginBottom: 12,
@@ -263,7 +265,7 @@ const styles = StyleSheet.create({
   clubName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: Colors.text,
     flex: 1,
     marginRight: 8,
   },
@@ -289,7 +291,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   detailText: {
-    color: '#D1D5DB',
+    color: Colors.textSecondary,
     fontSize: 14,
   },
   bookingFooter: {
@@ -297,15 +299,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: Colors.border,
     paddingTop: 12,
   },
   priceLabel: {
-    color: '#9CA3AF',
+    color: Colors.textSecondary,
     fontSize: 12,
   },
   priceValue: {
-    color: '#8B5CF6',
+    color: Colors.primary,
     fontSize: 20,
     fontWeight: 'bold',
     marginTop: 2,
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   qrText: {
-    color: '#8B5CF6',
+    color: Colors.primary,
     fontSize: 12,
     fontWeight: '600',
   },
