@@ -129,6 +129,7 @@ class Club(BaseModel):
     total_ratings: int = 0
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    distance: Optional[float] = None  # Distance in km when location provided
     is_featured: bool = False
     is_promoted: bool = False
     amenities: List[str] = []
