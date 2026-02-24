@@ -16,9 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
-import { useAuth } from '../../contexts/AuthContext';
-import { Colors } from '../../constants/Colors';
-import { TERMS_AND_CONDITIONS, ID_VERIFICATION_WARNING } from '../../constants/Terms';
+import { useAuth } from '../contexts/AuthContext';
+import { Colors } from '../constants/Colors';
+import { TERMS_AND_CONDITIONS, ID_VERIFICATION_WARNING } from '../constants/Terms';
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
