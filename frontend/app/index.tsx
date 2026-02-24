@@ -11,12 +11,8 @@ export default function Index() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        // Check if user profile is complete
-        if (!user.is_verified && !user.terms_accepted) {
-          router.replace('/complete-profile');
-        } else {
-          router.replace('/(tabs)/home');
-        }
+        // Always go to home for now
+        router.replace('/(tabs)/home');
       } else {
         router.replace('/login');
       }
