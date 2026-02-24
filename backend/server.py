@@ -210,10 +210,14 @@ def generate_golden_qr(data: str, booking_details: dict) -> str:
     # Create QR image with golden color
     qr_img = qr.make_image(fill_color="#D4AF37", back_color="black")
     
+    # Convert to RGB if needed
+    if qr_img.mode != 'RGB':
+        qr_img = qr_img.convert('RGB')
+    
     # Create larger canvas for QR + details
     width, height = qr_img.size
     canvas_height = height + 250  # Extra space for details
-    canvas = Image.new('RGB', (width, canvas_height), color='black')
+    canvas = Image.new('RGB', (width, canvas_height), color=(0, 0, 0))  # Black background
     
     # Paste QR code
     canvas.paste(qr_img, (0, 0))
@@ -221,13 +225,8 @@ def generate_golden_qr(data: str, booking_details: dict) -> str:
     # Add booking details in white text
     draw = ImageDraw.Draw(canvas)
     
-    # Try to use a nice font, fallback to default
-    try:
-        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
-        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
-    except:
-        font_large = ImageFont.load_default()
-        font_medium = ImageFont.load_default()
+    # Use default font
+    font_medium = ImageFont.load_default()
     
     y_offset = height + 20
     golden = (212, 175, 55)  # RGB for #D4AF37
