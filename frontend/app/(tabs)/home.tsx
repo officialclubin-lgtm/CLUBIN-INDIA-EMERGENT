@@ -9,11 +9,16 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
+import * as Location from 'expo-location';
+import { Colors } from '../../constants/Colors';
+import FeaturedCarousel from '../../components/FeaturedCarousel';
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
