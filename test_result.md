@@ -137,6 +137,36 @@ backend:
         agent: "testing"
         comment: "✅ All club endpoints working perfectly. GET /clubs returns 5 clubs with all required fields. City filtering (GET /clubs?city=Mumbai) works correctly returning 2 Mumbai clubs. GET /clubs/club_001 retrieves specific club details. GET /cities returns available cities: ['Bangalore', 'Delhi', 'Mumbai']."
 
+  - task: "Enhanced club endpoints (Featured clubs, Location-based distance)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented enhanced club features with featured/promoted flags and location-based distance calculation"
+      - working: true
+        agent: "testing"
+        comment: "✅ Enhanced club endpoints working perfectly. GET /clubs/featured returns 5 featured clubs with proper is_featured/is_promoted flags. Location-based distance calculation working correctly - GET /clubs?latitude=19.0500&longitude=72.8200 returns clubs with distance field (e.g., Skybar Lounge: 1.46 km). Distance calculation uses proper haversine formula."
+
+  - task: "Event management endpoints (GET events, GET events/featured, GET events/{id})"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented event endpoints with enhanced fields for flyer, layout, artists, organizers, sponsors"
+      - working: true
+        agent: "testing"
+        comment: "✅ All event endpoints working perfectly. GET /events returns 3 events with enhanced fields (flyer_image, layout_image, artists, organized_by, sponsored_by). GET /events/featured returns 3 featured events for carousel. GET /events/event_001 retrieves specific event details successfully. All events have proper enhanced fields structure."
+
   - task: "Booking endpoints (Create, List, Cancel)"
     implemented: true
     working: true
@@ -152,7 +182,7 @@ backend:
         agent: "testing"
         comment: "✅ All booking endpoints working correctly. POST /bookings creates bookings with accurate price calculations (tested multiple clubs and entry types). GET /bookings returns user-specific bookings. GET /bookings/{id} retrieves specific booking details. POST /bookings/{id}/cancel successfully cancels bookings. Price calculations verified: Prism Club male ₹2000x2=₹4000, female ₹1200x1=₹1200."
 
-  - task: "Payment integration (Razorpay order creation and verification)"
+  - task: "Payment integration with Golden QR generation"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -166,6 +196,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ Payment integration working perfectly in demo mode. POST /payment/create-order creates mock orders with correct amounts. POST /payment/verify successfully verifies payments and generates base64 QR codes (1072 characters). QR codes contain booking data in format 'CLUBIN:{booking_id}:{club_id}:{entry_date}:{quantity}'. Booking status updates to 'confirmed' after payment verification."
+      - working: true
+        agent: "testing"
+        comment: "✅ GOLDEN QR GENERATION ENHANCED: Fixed QR generation to produce premium Golden QR codes with 23,000+ characters (vs previous 1,000). New QR codes embed extended booking details and use larger format (version 8, box_size 20) with golden color (#D4AF37). QR generation function now working perfectly for new bookings."
 
 frontend:
   - task: "Authentication flow with Emergent Auth"
