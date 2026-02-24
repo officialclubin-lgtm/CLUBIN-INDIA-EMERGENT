@@ -13,6 +13,15 @@ interface User {
   name: string;
   picture?: string;
   phone?: string;
+  age?: number;
+  date_of_birth?: string;
+  id_card_type?: string;
+  id_card_number?: string;
+  id_card_image?: string;
+  is_verified: boolean;
+  verification_status: string;
+  terms_accepted: boolean;
+  location?: any;
 }
 
 interface AuthContextType {
