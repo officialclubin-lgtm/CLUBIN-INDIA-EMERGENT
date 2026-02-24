@@ -215,7 +215,7 @@ def generate_golden_qr(data: str, booking_details: dict) -> str:
     canvas = Image.new('RGB', (width, canvas_height), color='black')
     
     # Paste QR code
-    canvas.paste(qr_img, (0, 0))
+    canvas.paste(qr_img, (0, 0, width, height))
     
     # Add booking details in white text
     draw = ImageDraw.Draw(canvas)
