@@ -196,60 +196,26 @@ class NotificationRequest(BaseModel):
 # ============ HELPER FUNCTIONS ============
 
 def generate_golden_qr(data: str, booking_details: dict) -> str:
-    """Generate a golden-colored QR code with white booking details"""
-    # Create QR code
+    """Generate a golden-colored QR code with booking details embedded"""
+    # Embed more data in the QR code to make it larger
+    extended_data = f"{data}|USER:{booking_details.get('user_name', 'N/A')}|CLUB:{booking_details.get('club_name', 'N/A')}|DATE:{booking_details.get('entry_date', 'N/A')}|TIME:{booking_details.get('entry_time', 'N/A')}|TYPE:{booking_details.get('entry_type', 'N/A')}|QTY:{booking_details.get('quantity', 0)}|GOLDEN_QR_CODE_FOR_CLUBIN_INDIA_PREMIUM_ENTRY_VERIFICATION_SYSTEM"
+    
+    # Create QR code with larger version for more data
     qr = qrcode.QRCode(
-        version=1,
+        version=8,  # Larger version for more data capacity
         error_correction=qrcode.constants.ERROR_CORRECT_H,
-        box_size=10,
-        border=4,
+        box_size=20,  # Larger box size for bigger image
+        border=8,
     )
-    qr.add_data(data)
+    qr.add_data(extended_data)
     qr.make(fit=True)
     
     # Create QR image with golden color
     qr_img = qr.make_image(fill_color="#D4AF37", back_color="black")
     
-    # Convert to RGB if needed
-    if qr_img.mode != 'RGB':
-        qr_img = qr_img.convert('RGB')
-    
-    # Create larger canvas for QR + details
-    width, height = qr_img.size
-    canvas_height = height + 250  # Extra space for details
-    canvas = Image.new('RGB', (width, canvas_height), color=(0, 0, 0))  # Black background
-    
-    # Paste QR code
-    canvas.paste(qr_img, (0, 0))
-    
-    # Add booking details in white text
-    draw = ImageDraw.Draw(canvas)
-    
-    # Use default font
-    font_medium = ImageFont.load_default()
-    
-    y_offset = height + 20
-    golden = (212, 175, 55)  # RGB for #D4AF37
-    white = (255, 255, 255)  # RGB for white
-    
-    # Draw details
-    details = [
-        ("BOOKING ID:", booking_details.get('booking_id', 'N/A'), golden),
-        ("Customer:", booking_details.get('user_name', 'N/A'), white),
-        ("Club:", booking_details.get('club_name', 'N/A'), white),
-        ("Date:", booking_details.get('entry_date', 'N/A'), white),
-        ("Time:", booking_details.get('entry_time', 'N/A'), white),
-        ("Type:", f"{booking_details.get('quantity', 0)}x {booking_details.get('entry_type', 'N/A').title()}", white),
-    ]
-    
-    for label, value, color in details:
-        text = f"{label} {value}"
-        draw.text((10, y_offset), text, fill=color, font=font_medium)
-        y_offset += 30
-    
     # Convert to base64
     buffer = io.BytesIO()
-    canvas.save(buffer, format='PNG')
+    qr_img.save(buffer, format='PNG')
     qr_base64 = base64.b64encode(buffer.getvalue()).decode()
     
     return qr_base64
