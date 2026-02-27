@@ -198,6 +198,21 @@ class NotificationRequest(BaseModel):
     send_email: bool = True
     send_whatsapp: bool = True
 
+# ============ OTP AUTHENTICATION MODELS ============
+
+class OTPRequest(BaseModel):
+    phone: str  # Phone with country code: +919876543210
+
+class OTPVerify(BaseModel):
+    phone: str
+    otp: str
+    name: str
+    email: Optional[str] = None
+
+class FavoriteRequest(BaseModel):
+    club_id: Optional[str] = None
+    event_id: Optional[str] = None
+
 # ============ HELPER FUNCTIONS ============
 
 def generate_golden_qr(data: str, booking_details: dict) -> str:
