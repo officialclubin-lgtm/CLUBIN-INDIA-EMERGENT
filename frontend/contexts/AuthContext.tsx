@@ -1,8 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import axios from 'axios';
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -27,9 +24,11 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: () => Promise<void>;
-  logout: () => Promise<void>;
   sessionToken: string | null;
+  sendOTP: (phone: string) => Promise<{ success: boolean; message?: string; otp?: string }>;
+  verifyOTP: (phone: string, otp: string, name: string) => Promise<{ success: boolean; message?: string }>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,13 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     checkExistingSession();
-    
-    // Handle deep links
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-    
-    return () => {
-      subscription.remove();
-    };
   }, []);
 
   const checkExistingSession = async () => {
@@ -60,47 +52,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Error checking session:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDeepLink = async (event: { url: string }) => {
-    const { url } = event;
-    await processAuthUrl(url);
-  };
-
-  const processAuthUrl = async (url: string) => {
-    // Parse session_id from URL (hash or query)
-    let sessionId = null;
-    
-    if (url.includes('#session_id=')) {
-      sessionId = url.split('#session_id=')[1]?.split('&')[0];
-    } else if (url.includes('?session_id=')) {
-      sessionId = url.split('?session_id=')[1]?.split('&')[0];
-    }
-
-    if (sessionId) {
-      await exchangeSessionId(sessionId);
-    }
-  };
-
-  const exchangeSessionId = async (sessionId: string) => {
-    try {
-      const response = await axios.post(
-        `${EXPO_PUBLIC_BACKEND_URL}/api/auth/session`,
-        {},
-        {
-          headers: {
-            'X-Session-ID': sessionId,
-          },
-        }
-      );
-
-      const { session_token } = response.data;
-      await AsyncStorage.setItem('session_token', session_token);
-      setSessionToken(session_token);
-      await fetchUserData(session_token);
-    } catch (error) {
-      console.error('Error exchanging session:', error);
     }
   };
 
@@ -117,28 +68,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Error fetching user:', error);
       await AsyncStorage.removeItem('session_token');
       setSessionToken(null);
+      setUser(null);
     }
   };
 
-  const login = async () => {
+  const sendOTP = async (phone: string) => {
     try {
-      const redirectUrl = Platform.OS === 'web'
-        ? `${EXPO_PUBLIC_BACKEND_URL}/`
-        : Linking.createURL('/');
+      const response = await axios.post(
+        `${EXPO_PUBLIC_BACKEND_URL}/api/auth/otp/send`,
+        { phone }
+      );
+      
+      return {
+        success: true,
+        message: response.data.message,
+        otp: response.data.otp, // For demo mode
+      };
+    } catch (error: any) {
+      console.error('Send OTP error:', error);
+      return {
+        success: false,
+        message: error.response?.data?.detail || 'Failed to send OTP',
+      };
+    }
+  };
 
-      const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  const verifyOTP = async (phone: string, otp: string, name: string) => {
+    try {
+      const response = await axios.post(
+        `${EXPO_PUBLIC_BACKEND_URL}/api/auth/otp/verify`,
+        { phone, otp, name }
+      );
 
-      if (Platform.OS === 'web') {
-        window.location.href = authUrl;
-      } else {
-        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-        
-        if (result.type === 'success' && result.url) {
-          await processAuthUrl(result.url);
-        }
-      }
-    } catch (error) {
-      console.error('Login error:', error);
+      const { session_token, user: userData } = response.data;
+      
+      await AsyncStorage.setItem('session_token', session_token);
+      setSessionToken(session_token);
+      setUser(userData);
+
+      return {
+        success: true,
+        message: 'Login successful',
+      };
+    } catch (error: any) {
+      console.error('Verify OTP error:', error);
+      return {
+        success: false,
+        message: error.response?.data?.detail || 'Invalid OTP',
+      };
     }
   };
 
@@ -164,8 +141,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshUser = async () => {
+    if (sessionToken) {
+      await fetchUserData(sessionToken);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, sessionToken }}>
+    <AuthContext.Provider value={{ user, loading, sessionToken, sendOTP, verifyOTP, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
