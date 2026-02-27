@@ -18,6 +18,11 @@ import io
 import base64
 from PIL import Image, ImageDraw, ImageFont
 import json
+import pyotp
+import random
+
+# Import UltraMsg helper
+from ultramsg_helper import send_booking_confirmation_whatsapp, send_otp_whatsapp, send_cancellation_whatsapp
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
