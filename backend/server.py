@@ -362,6 +362,119 @@ async def create_session(request: Request):
 async def get_me(current_user: User = Depends(require_auth)):
     return current_user
 
+# ============ OTP AUTHENTICATION ENDPOINTS ============
+
+@api_router.post("/auth/otp/send")
+async def send_otp(otp_request: OTPRequest):
+    """Send OTP to phone number via WhatsApp"""
+    phone = otp_request.phone
+    
+    # Generate 6-digit OTP
+    otp = str(random.randint(100000, 999999))
+    
+    # Store OTP in database with 5-minute expiry
+    await db.otp_codes.update_one(
+        {"phone": phone},
+        {
+            "$set": {
+                "phone": phone,
+                "otp": otp,
+                "expires_at": datetime.now(timezone.utc) + timedelta(minutes=5),
+                "created_at": datetime.now(timezone.utc)
+            }
+        },
+        upsert=True
+    )
+    
+    # Send OTP via WhatsApp using UltraMsg
+    success = await send_otp_whatsapp(phone, otp)
+    
+    if success:
+        return {"message": "OTP sent successfully via WhatsApp", "phone": phone}
+    else:
+        # Fallback: Return OTP in response for demo (remove in production)
+        logger.warning(f"WhatsApp OTP failed for {phone}. Returning OTP in response.")
+        return {"message": "OTP sent (demo mode)", "phone": phone, "otp": otp}
+
+@api_router.post("/auth/otp/verify")
+async def verify_otp(verify_data: OTPVerify):
+    """Verify OTP and create/login user"""
+    phone = verify_data.phone
+    otp = verify_data.otp
+    
+    # Find OTP in database
+    otp_doc = await db.otp_codes.find_one({"phone": phone}, {"_id": 0})
+    
+    if not otp_doc:
+        raise HTTPException(status_code=400, detail="OTP not found or expired")
+    
+    # Check if expired
+    expires_at = otp_doc["expires_at"]
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="OTP expired. Please request a new one.")
+    
+    # Verify OTP
+    if otp_doc["otp"] != otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+    
+    # Delete used OTP
+    await db.otp_codes.delete_one({"phone": phone})
+    
+    # Check if user exists
+    existing_user = await db.users.find_one({"phone": phone}, {"_id": 0})
+    
+    if existing_user:
+        user_id = existing_user["user_id"]
+        # Update name if provided
+        if verify_data.name:
+            await db.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"name": verify_data.name}}
+            )
+    else:
+        # Create new user
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": verify_data.email or f"{phone}@clubinindia.app",
+            "name": verify_data.name,
+            "picture": None,
+            "phone": phone,
+            "age": None,
+            "date_of_birth": None,
+            "id_card_type": None,
+            "id_card_number": None,
+            "id_card_image": None,
+            "is_verified": False,
+            "verification_status": "pending",
+            "terms_accepted": False,
+            "location": None,
+            "created_at": datetime.now(timezone.utc)
+        })
+    
+    # Create session
+    session_token = f"session_{uuid.uuid4().hex}"
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=30),
+        "created_at": datetime.now(timezone.utc)
+    })
+    
+    # Get user data
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    
+    return {
+        "message": "Login successful",
+        "session_token": session_token,
+        "user": User(**user)
+    }
+
+# ============ CONTINUE WITH EXISTING ENDPOINTS ============
+
 @api_router.put("/auth/profile")
 async def update_profile(profile: UserProfileUpdate, current_user: User = Depends(require_auth)):
     """Update user profile with age verification and ID proof"""
