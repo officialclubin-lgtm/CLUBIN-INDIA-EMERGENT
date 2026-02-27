@@ -251,10 +251,11 @@ async def send_notification(booking: dict, notification_type: str = "booking_con
             # TODO: Implement SendGrid email
             pass
         
-        # WhatsApp notification (placeholder)
-        if os.getenv('TWILIO_ACCOUNT_SID') and os.getenv('TWILIO_AUTH_TOKEN'):
-            # TODO: Implement Twilio WhatsApp
-            pass
+        # WhatsApp notification using UltraMsg
+        whatsapp_success = await send_booking_confirmation_whatsapp(booking)
+        
+        if whatsapp_success:
+            logger.info(f"WhatsApp confirmation sent for booking {booking['booking_id']}")
         
         # Mark notification as sent
         await db.bookings.update_one(
