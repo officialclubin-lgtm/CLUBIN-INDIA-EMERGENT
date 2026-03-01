@@ -37,6 +37,11 @@ db = client[os.environ['DB_NAME']]
 # Razorpay client
 razorpay_client = None
 
+# Initialize Firebase Admin SDK
+firebase_project_id = os.environ.get('FIREBASE_PROJECT_ID')
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(options={'projectId': firebase_project_id})
+
 # Create the main app
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
