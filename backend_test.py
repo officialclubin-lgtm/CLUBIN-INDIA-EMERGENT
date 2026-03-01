@@ -56,22 +56,130 @@ class ClubinAPITester:
         
         return True
 
-    def test_root_endpoint(self):
-        """Test API root endpoint"""
+    def test_health_check(self):
+        """Test GET /api/ - Health check endpoint"""
         try:
             response = requests.get(f"{BASE_URL}/")
             success = response.status_code == 200
             data = response.json() if success else None
             
+            expected_message = "CLUBIN INDIA API - Customer App v2.0"
+            expected_status = "running"
+            
+            message_match = data and data.get('message') == expected_message
+            status_match = data and data.get('status') == expected_status
+            
             self.log_result(
-                "API Root Endpoint",
+                "Health Check Endpoint",
+                success and message_match and status_match,
+                f"Status: {response.status_code}, Message: '{data.get('message', 'N/A') if data else 'No response'}', Status: '{data.get('status', 'N/A') if data else 'No response'}'",
+                data
+            )
+            return success and message_match and status_match
+        except Exception as e:
+            self.log_result("Health Check Endpoint", False, f"Exception: {str(e)}")
+            return False
+
+    def test_firebase_auth_invalid_token(self):
+        """Test POST /api/auth/firebase/verify with invalid token"""
+        try:
+            payload = {
+                "id_token": "invalid_token",
+                "name": "Test"
+            }
+            
+            response = requests.post(f"{BASE_URL}/auth/firebase/verify", json=payload)
+            success = response.status_code == 401
+            data = response.json() if response.content else None
+            
+            self.log_result(
+                "Firebase Auth - Invalid Token",
                 success,
-                f"Status: {response.status_code}, Message: {data.get('message', 'N/A') if data else 'No response'}",
+                f"Status: {response.status_code} (Expected 401), Response: {data}",
                 data
             )
             return success
         except Exception as e:
-            self.log_result("API Root Endpoint", False, f"Exception: {str(e)}")
+            self.log_result("Firebase Auth - Invalid Token", False, f"Exception: {str(e)}")
+            return False
+
+    def test_otp_send(self):
+        """Test POST /api/auth/otp/send"""
+        try:
+            payload = {"phone": "+919876543210"}
+            
+            response = requests.post(f"{BASE_URL}/auth/otp/send", json=payload)
+            success = response.status_code == 200
+            data = response.json() if response.content else None
+            
+            # Store OTP for verification test
+            if success and data and 'otp' in data:
+                self.otp = data['otp']
+            
+            self.log_result(
+                "OTP Send (Legacy)",
+                success,
+                f"Status: {response.status_code}, OTP received: {'Yes' if success and data and 'otp' in data else 'No'}",
+                {"has_otp": bool(success and data and 'otp' in data)}
+            )
+            return success
+        except Exception as e:
+            self.log_result("OTP Send (Legacy)", False, f"Exception: {str(e)}")
+            return False
+
+    def test_otp_verify(self):
+        """Test POST /api/auth/otp/verify"""
+        try:
+            if not hasattr(self, 'otp'):
+                self.log_result("OTP Verify (Legacy)", False, "No OTP available from send test")
+                return False
+            
+            payload = {
+                "phone": "+919876543210",
+                "otp": self.otp,
+                "name": "Test User"
+            }
+            
+            response = requests.post(f"{BASE_URL}/auth/otp/verify", json=payload)
+            success = response.status_code == 200
+            data = response.json() if response.content else None
+            
+            # Store session token for authenticated requests
+            if success and data and 'session_token' in data:
+                self.session_token = data['session_token']
+            
+            self.log_result(
+                "OTP Verify (Legacy)",
+                success,
+                f"Status: {response.status_code}, Session token received: {'Yes' if success and data and 'session_token' in data else 'No'}",
+                {"has_session_token": bool(success and data and 'session_token' in data)}
+            )
+            return success
+        except Exception as e:
+            self.log_result("OTP Verify (Legacy)", False, f"Exception: {str(e)}")
+            return False
+
+    def test_auth_me(self):
+        """Test GET /api/auth/me with Authorization header"""
+        try:
+            if not hasattr(self, 'session_token') or not self.session_token:
+                self.log_result("Auth Me Endpoint", False, "No session token available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.session_token}"}
+            response = requests.get(f"{BASE_URL}/auth/me", headers=headers)
+            success = response.status_code == 200
+            data = response.json() if response.content else None
+            
+            self.log_result(
+                "Auth Me Endpoint",
+                success,
+                f"Status: {response.status_code}, User data received: {'Yes' if success and data else 'No'}",
+                data
+            )
+            return success
+        except Exception as e:
+            self.log_result("Auth Me Endpoint", False, f"Exception: {str(e)}")
             return False
 
     def test_cities_endpoint(self):
