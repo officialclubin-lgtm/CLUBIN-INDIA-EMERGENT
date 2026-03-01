@@ -370,11 +370,13 @@ class ClubinAPITester:
                 return False
             
             event_data = {
-                "name": "Test Event Mumbai",
+                "title": "Test Event Mumbai",  # Changed from 'name' to 'title'
                 "club_id": self.test_club_id,
                 "event_date": (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d"),
                 "event_time": "10:00 PM",
                 "description": "Test event for new club",
+                "ticket_price": 1500,  # Added required field
+                "available_tickets": 100,  # Added required field
                 "entry_price_male": 1800,
                 "entry_price_female": 1200,
                 "entry_price_couple": 2500
