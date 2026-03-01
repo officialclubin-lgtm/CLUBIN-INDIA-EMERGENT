@@ -626,28 +626,50 @@ class ClubinAPITester:
             return False
 
     def run_all_tests(self):
-        """Run comprehensive test suite"""
-        print("🚀 Starting CLUBIN INDIA Enhanced Backend API Testing")
+        """Run comprehensive test suite based on review request"""
+        print("🚀 Starting CLUBIN INDIA Backend API Testing (Review Request)")
         print("=" * 60)
         
-        # Setup
-        self.create_test_session()
+        # Initialize variables
+        self.otp = None
+        self.session_token = None
+        self.test_club_id = None
         
-        # Test all endpoints
+        # Test all endpoints as specified in review request
         tests = [
-            self.test_root_endpoint,
-            self.test_cities_endpoint,
+            # 1. Health Check
+            self.test_health_check,
+            
+            # 2. Firebase Auth Endpoint
+            self.test_firebase_auth_invalid_token,
+            
+            # 3. OTP Auth Endpoints (legacy)
+            self.test_otp_send,
+            self.test_otp_verify,
+            
+            # 4. Auth Me Endpoint
+            self.test_auth_me,
+            
+            # 5. Clubs Endpoints
             self.test_clubs_endpoint,
             self.test_featured_clubs,
-            self.test_location_based_clubs,
+            self.test_cities_endpoint,
+            
+            # 6. Events Endpoints
             self.test_events_endpoint,
             self.test_featured_events,
-            self.test_specific_event,
-            self.test_booking_creation_with_auth,
-            self.test_payment_order_creation,
-            self.test_payment_verification_and_golden_qr,
-            self.test_booking_retrieval_with_qr,
-            self.test_data_verification
+            
+            # 7. Create a Club (authenticated)
+            self.test_create_club,
+            
+            # 8. Create an Event (authenticated)
+            self.test_create_event,
+            
+            # 9. Bookings
+            self.test_bookings_list,
+            
+            # 10. Logout
+            self.test_logout
         ]
         
         passed = 0
