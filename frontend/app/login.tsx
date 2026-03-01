@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,17 +20,27 @@ import { Colors } from '../constants/Colors';
 
 export default function OTPLoginScreen() {
   const router = useRouter();
-  const { sendOTP, verifyOTP } = useAuth();
-  
+  const { sendOTP, confirmOTP, setupRecaptcha } = useAuth();
+
   const [step, setStep] = useState<'phone' | 'otp' | 'name'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [demoOTP, setDemoOTP] = useState<string | null>(null);
   const [timer, setTimer] = useState(0);
-  
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
+
   const otpInputs = useRef<Array<TextInput | null>>([]);
+
+  useEffect(() => {
+    // Setup reCAPTCHA on mount (web only)
+    if (Platform.OS === 'web') {
+      setTimeout(() => {
+        setupRecaptcha('recaptcha-container');
+        setRecaptchaReady(true);
+      }, 500);
+    }
+  }, []);
 
   useEffect(() => {
     if (timer > 0) {
@@ -43,9 +53,6 @@ export default function OTPLoginScreen() {
 
   const formatPhone = (text: string) => {
     const cleaned = text.replace(/[^0-9]/g, '');
-    if (cleaned.length <= 10) {
-      return cleaned;
-    }
     return cleaned.slice(0, 10);
   };
 
@@ -57,26 +64,28 @@ export default function OTPLoginScreen() {
 
     setLoading(true);
     const fullPhone = `+91${phone}`;
+
+    // Re-setup recaptcha if it was cleared
+    if (Platform.OS === 'web' && !recaptchaReady) {
+      setupRecaptcha('recaptcha-container');
+      setRecaptchaReady(true);
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
     const result = await sendOTP(fullPhone);
     setLoading(false);
 
     if (result.success) {
       setStep('otp');
-      setTimer(300); // 5 minutes
-      
-      // Show demo OTP if available
-      if (result.otp) {
-        setDemoOTP(result.otp);
-        Alert.alert(
-          'OTP Sent (Demo Mode)',
-          `Your OTP: ${result.otp}\n\nWhatsApp integration not configured. Using demo mode.`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('OTP Sent', 'Check your WhatsApp for the verification code');
-      }
+      setTimer(120);
     } else {
       Alert.alert('Error', result.message || 'Failed to send OTP');
+      // Reset recaptcha for retry
+      setRecaptchaReady(false);
+      setTimeout(() => {
+        setupRecaptcha('recaptcha-container');
+        setRecaptchaReady(true);
+      }, 500);
     }
   };
 
@@ -85,14 +94,8 @@ export default function OTPLoginScreen() {
     newOtp[index] = value;
     setOtp(newOtp);
 
-    // Auto-focus next input
     if (value && index < 5) {
       otpInputs.current[index + 1]?.focus();
-    }
-
-    // Auto-verify when all filled
-    if (newOtp.every((digit) => digit !== '') && index === 5) {
-      handleVerifyOTP(newOtp.join(''));
     }
   };
 
@@ -104,18 +107,15 @@ export default function OTPLoginScreen() {
 
   const handleVerifyOTP = async (otpCode?: string) => {
     const otpString = otpCode || otp.join('');
-    
+
     if (otpString.length !== 6) {
       Alert.alert('Invalid OTP', 'Please enter the complete 6-digit code');
       return;
     }
 
-    setLoading(true);
-    const fullPhone = `+91${phone}`;
-    
-    // If we have a name, verify directly, otherwise ask for name first
-    if (name) {
-      const result = await verifyOTP(fullPhone, otpString, name);
+    if (name.trim()) {
+      setLoading(true);
+      const result = await confirmOTP(otpString, name.trim());
       setLoading(false);
 
       if (result.success) {
@@ -126,7 +126,6 @@ export default function OTPLoginScreen() {
         otpInputs.current[0]?.focus();
       }
     } else {
-      setLoading(false);
       setStep('name');
     }
   };
@@ -138,10 +137,8 @@ export default function OTPLoginScreen() {
     }
 
     setLoading(true);
-    const fullPhone = `+91${phone}`;
     const otpString = otp.join('');
-    
-    const result = await verifyOTP(fullPhone, otpString, name.trim());
+    const result = await confirmOTP(otpString, name.trim());
     setLoading(false);
 
     if (result.success) {
@@ -157,7 +154,12 @@ export default function OTPLoginScreen() {
       return;
     }
     setOtp(['', '', '', '', '', '']);
-    handleSendOTP();
+    setRecaptchaReady(false);
+    setTimeout(() => {
+      setupRecaptcha('recaptcha-container');
+      setRecaptchaReady(true);
+      handleSendOTP();
+    }, 500);
   };
 
   return (
@@ -184,7 +186,7 @@ export default function OTPLoginScreen() {
           {step === 'phone' && (
             <View style={styles.formContainer}>
               <Text style={styles.title}>Enter Mobile Number</Text>
-              <Text style={styles.description}>We'll send you a verification code</Text>
+              <Text style={styles.description}>We'll send you a verification code via SMS</Text>
 
               <View style={styles.phoneInputContainer}>
                 <View style={styles.countryCode}>
@@ -199,6 +201,7 @@ export default function OTPLoginScreen() {
                   value={phone}
                   onChangeText={(text) => setPhone(formatPhone(text))}
                   autoFocus
+                  data-testid="phone-input"
                 />
               </View>
 
@@ -206,6 +209,7 @@ export default function OTPLoginScreen() {
                 style={[styles.button, phone.length !== 10 && styles.buttonDisabled]}
                 onPress={handleSendOTP}
                 disabled={loading || phone.length !== 10}
+                data-testid="send-otp-btn"
               >
                 {loading ? (
                   <ActivityIndicator color={Colors.background} />
@@ -214,7 +218,7 @@ export default function OTPLoginScreen() {
                 )}
               </TouchableOpacity>
 
-              <Text style={styles.ageWarning}>⚠️ You must be 21+ to use this service</Text>
+              <Text style={styles.ageWarning}>You must be 21+ to use this service</Text>
             </View>
           )}
 
@@ -226,15 +230,7 @@ export default function OTPLoginScreen() {
               </TouchableOpacity>
 
               <Text style={styles.title}>Enter Verification Code</Text>
-              <Text style={styles.description}>
-                Code sent to +91 {phone}
-              </Text>
-
-              {demoOTP && (
-                <View style={styles.demoBox}>
-                  <Text style={styles.demoText}>Demo OTP: {demoOTP}</Text>
-                </View>
-              )}
+              <Text style={styles.description}>Code sent to +91 {phone}</Text>
 
               <View style={styles.otpContainer}>
                 {otp.map((digit, index) => (
@@ -250,6 +246,7 @@ export default function OTPLoginScreen() {
                     keyboardType="number-pad"
                     maxLength={1}
                     selectTextOnFocus
+                    data-testid={`otp-input-${index}`}
                   />
                 ))}
               </View>
@@ -268,6 +265,7 @@ export default function OTPLoginScreen() {
                 style={[styles.button, styles.buttonMarginTop]}
                 onPress={() => handleVerifyOTP()}
                 disabled={loading || otp.some((digit) => !digit)}
+                data-testid="verify-otp-btn"
               >
                 {loading ? (
                   <ActivityIndicator color={Colors.background} />
@@ -292,12 +290,14 @@ export default function OTPLoginScreen() {
                 onChangeText={setName}
                 autoFocus
                 autoCapitalize="words"
+                data-testid="name-input"
               />
 
               <TouchableOpacity
                 style={[styles.button, name.trim().length < 2 && styles.buttonDisabled]}
                 onPress={handleCompleteRegistration}
                 disabled={loading || name.trim().length < 2}
+                data-testid="complete-registration-btn"
               >
                 {loading ? (
                   <ActivityIndicator color={Colors.background} />
@@ -312,6 +312,9 @@ export default function OTPLoginScreen() {
           <Text style={styles.termsText}>
             By continuing, you agree to our Terms of Service and Privacy Policy
           </Text>
+
+          {/* reCAPTCHA Container (invisible, web only) */}
+          <View nativeID="recaptcha-container" style={styles.recaptchaContainer} />
         </KeyboardAvoidingView>
       </LinearGradient>
     </SafeAreaView>
@@ -453,20 +456,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
-  demoBox: {
-    backgroundColor: Colors.warning + '20',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.warning,
-  },
-  demoText: {
-    color: Colors.warning,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
   ageWarning: {
     color: Colors.primary,
     fontSize: 14,
@@ -479,5 +468,11 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
+  },
+  recaptchaContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    opacity: 0,
   },
 });
