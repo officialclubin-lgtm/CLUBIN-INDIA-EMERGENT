@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build": "expo export -p web",
+    "build:vercel": "expo export -p web --output-dir dist",
+    "lint": "eslint ."
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "backend/server.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/server.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/$1"
+    }
+  ],
+  "env": {
+    "MONGO_URL": "@mongo_url",
+    "DB_NAME": "clubin_india",
+    "ULTRAMSG_INSTANCE_ID": "@ultramsg_instance_id",
+    "ULTRAMSG_TOKEN": "@ultramsg_token",
+    "RAZORPAY_KEY_ID": "@razorpay_key_id",
+    "RAZORPAY_KEY_SECRET": "@razorpay_key_secret"
+  },
+  "regions": ["bom1"],
+  "framework": "nextjs"
+}
