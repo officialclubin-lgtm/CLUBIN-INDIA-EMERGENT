@@ -1,72 +1,54 @@
-# CLUBIN INDIA - Quick Deployment Guide
+# CLUBIN INDIA - Deployment Guide
 
-## 🚀 One-Command Deployment
-
-### Prerequisites:
+## Prerequisites
 ```bash
-# Install Vercel CLI
 npm install -g vercel
-
-# Login
 vercel login
 ```
 
-### Deploy:
+## Deploy to Vercel
 ```bash
 cd /app
 vercel --prod
 ```
 
-### Set Environment Variables:
+## Set Environment Variables
 ```bash
-# MongoDB
+# MongoDB Atlas connection string (required)
 vercel env add MONGO_URL production
-# Paste: mongodb+srv://username:password@cluster.mongodb.net/
 
+# Database name
 vercel env add DB_NAME production
-# Paste: clubin_india
+# Value: clubin_india
 
-# UltraMsg WhatsApp
-vercel env add ULTRAMSG_INSTANCE_ID production
-vercel env add ULTRAMSG_TOKEN production
+# Firebase project ID (for auth token verification)
+vercel env add FIREBASE_PROJECT_ID production
+# Value: clubin-india-3d02c
 
-# Razorpay
+# Razorpay payment keys (optional, demo mode without)
 vercel env add RAZORPAY_KEY_ID production
 vercel env add RAZORPAY_KEY_SECRET production
 ```
 
-### Redeploy with Environment Variables:
+## Redeploy after setting env vars
 ```bash
 vercel --prod
 ```
 
-## ✅ That's It!
+## Test Deployment
+```bash
+# Backend health check
+curl https://your-app.vercel.app/api/
 
-Your app is live at: `https://your-app.vercel.app`
+# Frontend
+# Open: https://your-app.vercel.app
+```
 
-## 📱 Test Your Deployment:
+## Firebase Setup
+Phone Authentication is already configured with project: `clubin-india-3d02c`
+Ensure the Vercel deployment domain is added to Firebase Console → Authentication → Settings → Authorized domains.
 
-1. **Backend API**:
-   ```bash
-   curl https://your-app.vercel.app/api/
-   ```
-
-2. **Frontend**:
-   - Open browser: `https://your-app.vercel.app`
-   - Test OTP login
-   - Book a club entry
-
-3. **Mobile App**:
-   - Update `EXPO_PUBLIC_BACKEND_URL` in frontend/.env
-   - Rebuild: `expo prebuild`
-   - Test on device
-
-## 🔄 Continuous Deployment:
-
-- Connect GitHub repository to Vercel
-- Auto-deploy on push to main branch
-- Preview deployments for pull requests
-
-## 📞 Need Help?
-
-Check full documentation: `README_DEPLOYMENT.md`
+## Notes
+- Backend runs as Python serverless function via `@vercel/python`
+- Frontend builds as Expo web static export via `@vercel/static-build`
+- Region: Mumbai (bom1) for low latency in India
