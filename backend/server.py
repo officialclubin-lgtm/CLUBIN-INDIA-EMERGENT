@@ -485,6 +485,68 @@ async def verify_otp(verify_data: OTPVerify):
         "user": User(**user)
     }
 
+# ============ FIREBASE AUTHENTICATION ENDPOINT ============
+
+@api_router.post("/auth/firebase/verify")
+async def verify_firebase_token(auth_data: FirebaseAuthRequest):
+    """Verify Firebase ID token and create/login user"""
+    try:
+        decoded = firebase_auth.verify_id_token(auth_data.id_token)
+    except Exception as e:
+        logger.error(f"Firebase token verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid or expired Firebase token")
+
+    phone = decoded.get('phone_number')
+    firebase_uid = decoded['uid']
+
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number not found in Firebase token")
+
+    existing_user = await db.users.find_one({"phone": phone}, {"_id": 0})
+
+    if existing_user:
+        user_id = existing_user["user_id"]
+        update_fields = {"firebase_uid": firebase_uid}
+        if auth_data.name and auth_data.name.strip():
+            update_fields["name"] = auth_data.name.strip()
+        await db.users.update_one({"user_id": user_id}, {"$set": update_fields})
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": f"{phone.replace('+', '')}@clubinindia.app",
+            "name": auth_data.name or "User",
+            "picture": None,
+            "phone": phone,
+            "firebase_uid": firebase_uid,
+            "age": None,
+            "date_of_birth": None,
+            "id_card_type": None,
+            "id_card_number": None,
+            "id_card_image": None,
+            "is_verified": False,
+            "verification_status": "pending",
+            "terms_accepted": False,
+            "location": None,
+            "created_at": datetime.now(timezone.utc)
+        })
+
+    session_token = f"session_{uuid.uuid4().hex}"
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=30),
+        "created_at": datetime.now(timezone.utc)
+    })
+
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+
+    return {
+        "message": "Login successful",
+        "session_token": session_token,
+        "user": User(**user)
+    }
+
 # ============ CONTINUE WITH EXISTING ENDPOINTS ============
 
 @api_router.put("/auth/profile")
