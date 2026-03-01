@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-CLUBIN INDIA Enhanced Backend API Testing
-Testing all enhanced features including Golden QR generation
+CLUBIN INDIA Backend API Testing
+Testing specific endpoints as per review request
 """
 
 import requests
