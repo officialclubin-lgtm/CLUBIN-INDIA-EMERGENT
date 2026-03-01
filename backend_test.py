@@ -334,64 +334,128 @@ class ClubinAPITester:
             self.log_result("Specific Event Details", False, f"Exception: {str(e)}")
             return False
 
-    def test_booking_creation_with_auth(self):
-        """Test POST /api/bookings - Create booking (requires auth)"""
+    def test_create_club(self):
+        """Test POST /api/clubs (authenticated) - Create a club"""
         try:
-            # First, let's try to get clubs to find a valid club_id
-            clubs_response = requests.get(f"{BASE_URL}/clubs")
-            if clubs_response.status_code != 200:
-                self.log_result("Booking Creation", False, "Cannot get clubs for booking test")
+            if not hasattr(self, 'session_token') or not self.session_token:
+                self.log_result("Create Club", False, "No session token available")
                 return False
             
-            clubs = clubs_response.json()
-            if not clubs:
-                self.log_result("Booking Creation", False, "No clubs available for booking")
-                return False
-            
-            club_id = clubs[0]['club_id']
-            
-            # Create booking payload
-            booking_data = {
-                "club_id": club_id,
-                "entry_type": "male",
-                "quantity": 2,
-                "entry_date": (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d"),
-                "entry_time": "09:00 PM"
+            club_data = {
+                "name": "Test Club Mumbai",
+                "city": "Mumbai", 
+                "address": "Bandra West",
+                "description": "Premium nightclub",
+                "entry_price_male": 1500,
+                "entry_price_female": 1000,
+                "entry_price_couple": 2000,
+                "available_slots": 100
             }
             
             headers = {"Authorization": f"Bearer {self.session_token}"}
-            response = requests.post(f"{BASE_URL}/bookings", json=booking_data, headers=headers)
+            response = requests.post(f"{BASE_URL}/clubs", json=club_data, headers=headers)
+            success = response.status_code == 201
+            data = response.json() if response.content else None
             
-            # We expect 401 since we don't have real auth, but let's check the response
-            if response.status_code == 401:
-                self.log_result(
-                    "Booking Creation (Auth Required)",
-                    True,  # This is expected behavior
-                    f"Status: {response.status_code} - Correctly requires authentication",
-                    {"expected": "401 Unauthorized"}
-                )
-                return True
-            elif response.status_code == 201:
-                data = response.json()
-                self.test_booking_id = data.get('booking_id')
-                self.log_result(
-                    "Booking Creation",
-                    True,
-                    f"Status: {response.status_code}, Booking ID: {self.test_booking_id}",
-                    data
-                )
-                return True
-            else:
-                self.log_result(
-                    "Booking Creation",
-                    False,
-                    f"Unexpected status: {response.status_code}",
-                    response.json() if response.content else None
-                )
-                return False
-                
+            # Store club_id for event creation test
+            if success and data and 'club_id' in data:
+                self.test_club_id = data['club_id']
+            
+            self.log_result(
+                "Create Club (Authenticated)",
+                success,
+                f"Status: {response.status_code}, Club created: {'Yes' if success and data else 'No'}",
+                data
+            )
+            return success
         except Exception as e:
-            self.log_result("Booking Creation", False, f"Exception: {str(e)}")
+            self.log_result("Create Club", False, f"Exception: {str(e)}")
+            return False
+
+    def test_create_event(self):
+        """Test POST /api/events (authenticated) - Create an event"""
+        try:
+            if not hasattr(self, 'session_token') or not self.session_token:
+                self.log_result("Create Event", False, "No session token available")
+                return False
+            
+            if not hasattr(self, 'test_club_id') or not self.test_club_id:
+                self.log_result("Create Event", False, "No club_id available from club creation test")
+                return False
+            
+            event_data = {
+                "name": "Test Event Mumbai",
+                "club_id": self.test_club_id,
+                "event_date": (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d"),
+                "event_time": "10:00 PM",
+                "description": "Test event for new club",
+                "entry_price_male": 1800,
+                "entry_price_female": 1200,
+                "entry_price_couple": 2500
+            }
+            
+            headers = {"Authorization": f"Bearer {self.session_token}"}
+            response = requests.post(f"{BASE_URL}/events", json=event_data, headers=headers)
+            success = response.status_code == 201
+            data = response.json() if response.content else None
+            
+            self.log_result(
+                "Create Event (Authenticated)",
+                success,
+                f"Status: {response.status_code}, Event created: {'Yes' if success and data else 'No'}",
+                data
+            )
+            return success
+        except Exception as e:
+            self.log_result("Create Event", False, f"Exception: {str(e)}")
+            return False
+
+    def test_bookings_list(self):
+        """Test GET /api/bookings with auth header"""
+        try:
+            if not hasattr(self, 'session_token') or not self.session_token:
+                self.log_result("Bookings List", False, "No session token available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.session_token}"}
+            response = requests.get(f"{BASE_URL}/bookings", headers=headers)
+            success = response.status_code == 200
+            data = response.json() if response.content else None
+            
+            bookings_count = len(data) if data and isinstance(data, list) else 0
+            
+            self.log_result(
+                "Bookings List (Authenticated)",
+                success,
+                f"Status: {response.status_code}, Bookings found: {bookings_count}",
+                {"bookings_count": bookings_count}
+            )
+            return success
+        except Exception as e:
+            self.log_result("Bookings List", False, f"Exception: {str(e)}")
+            return False
+
+    def test_logout(self):
+        """Test POST /api/auth/logout with auth header"""
+        try:
+            if not hasattr(self, 'session_token') or not self.session_token:
+                self.log_result("Logout", False, "No session token available")
+                return False
+            
+            headers = {"Authorization": f"Bearer {self.session_token}"}
+            response = requests.post(f"{BASE_URL}/auth/logout", headers=headers)
+            success = response.status_code == 200
+            data = response.json() if response.content else None
+            
+            self.log_result(
+                "Logout (Authenticated)",
+                success,
+                f"Status: {response.status_code}, Logout successful: {'Yes' if success else 'No'}",
+                data
+            )
+            return success
+        except Exception as e:
+            self.log_result("Logout", False, f"Exception: {str(e)}")
             return False
 
     def test_payment_order_creation(self):
