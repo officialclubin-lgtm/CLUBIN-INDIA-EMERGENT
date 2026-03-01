@@ -220,6 +220,10 @@ class FavoriteRequest(BaseModel):
     club_id: Optional[str] = None
     event_id: Optional[str] = None
 
+class FirebaseAuthRequest(BaseModel):
+    id_token: str
+    name: Optional[str] = None
+
 # ============ HELPER FUNCTIONS ============
 
 def generate_golden_qr(data: str, booking_details: dict) -> str:
