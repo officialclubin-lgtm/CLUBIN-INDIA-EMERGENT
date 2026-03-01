@@ -19,7 +19,8 @@ class ClubinAPITester:
     def __init__(self):
         self.session_token = None
         self.user_id = None
-        self.test_booking_id = None
+        self.test_club_id = None
+        self.otp = None
         self.results = []
         
     def log_result(self, test_name, success, details="", response_data=None):
@@ -37,24 +38,6 @@ class ClubinAPITester:
         if not success and response_data:
             print(f"   Response: {response_data}")
         print()
-
-    def create_test_session(self):
-        """Create a test user session in MongoDB directly"""
-        print("🔧 Setting up test user session...")
-        
-        # Create mock session token
-        self.session_token = f"test_session_{uuid.uuid4().hex[:16]}"
-        self.user_id = f"user_{uuid.uuid4().hex[:12]}"
-        
-        # We'll use this for authenticated requests
-        print(f"Created test session: {self.session_token}")
-        print(f"Test user ID: {self.user_id}")
-        
-        # Insert test user and session directly via MongoDB (simulated)
-        # In real testing, we'd use the auth endpoints, but for comprehensive testing
-        # we'll create the session data directly
-        
-        return True
 
     def test_health_check(self):
         """Test GET /api/ - Health check endpoint"""
