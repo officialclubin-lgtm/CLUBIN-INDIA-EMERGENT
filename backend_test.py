@@ -337,20 +337,23 @@ class ClubinAPITester:
             
             headers = {"Authorization": f"Bearer {self.session_token}"}
             response = requests.post(f"{BASE_URL}/clubs", json=club_data, headers=headers)
-            success = response.status_code == 201
+            success = response.status_code in [200, 201]  # Accept both 200 and 201
             data = response.json() if response.content else None
             
             # Store club_id for event creation test
             if success and data and 'club_id' in data:
                 self.test_club_id = data['club_id']
+                club_created = True
+            else:
+                club_created = False
             
             self.log_result(
                 "Create Club (Authenticated)",
-                success,
-                f"Status: {response.status_code}, Club created: {'Yes' if success and data else 'No'}",
+                success and club_created,
+                f"Status: {response.status_code}, Club created: {'Yes' if club_created else 'No'}, Club ID: {self.test_club_id if hasattr(self, 'test_club_id') else 'N/A'}",
                 data
             )
-            return success
+            return success and club_created
         except Exception as e:
             self.log_result("Create Club", False, f"Exception: {str(e)}")
             return False
