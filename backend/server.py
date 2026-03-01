@@ -20,6 +20,8 @@ from PIL import Image, ImageDraw, ImageFont
 import json
 import pyotp
 import random
+import firebase_admin
+from firebase_admin import auth as firebase_auth
 
 # Import UltraMsg helper
 from ultramsg_helper import send_booking_confirmation_whatsapp, send_otp_whatsapp, send_cancellation_whatsapp
