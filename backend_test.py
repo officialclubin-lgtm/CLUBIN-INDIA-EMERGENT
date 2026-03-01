@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import uuid
 
 # Configuration
-BASE_URL = "https://nightlife-booking-2.preview.emergentagent.com/api"
+BASE_URL = "https://clubin-preview.preview.emergentagent.com/api"
 TEST_USER_EMAIL = "rajesh.kumar@gmail.com"
 TEST_USER_NAME = "Rajesh Kumar"
 

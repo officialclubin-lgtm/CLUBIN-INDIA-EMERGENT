@@ -87,7 +87,7 @@ RAZORPAY_KEY_SECRET=your_secret_here
 
 Frontend (.env):
 ```env
-EXPO_PUBLIC_BACKEND_URL=https://your-app.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://clubin-preview.preview.emergentagent.com
 ```
 
 ### Running the App
