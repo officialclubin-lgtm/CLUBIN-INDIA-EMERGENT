@@ -23,12 +23,5 @@
       "dest": "frontend/$1"
     }
   ],
-  "env": {
-    "MONGO_URL": "@mongo_url",
-    "DB_NAME": "clubin_india",
-    "FIREBASE_PROJECT_ID": "clubin-india-3d02c",
-    "RAZORPAY_KEY_ID": "@razorpay_key_id",
-    "RAZORPAY_KEY_SECRET": "@razorpay_key_secret"
-  },
   "regions": ["bom1"]
 }
