@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "",
-  "installCommand": "",
-  "outputDirectory": "frontend/dist",
   "functions": {
     "api/*.py": {
       "runtime": "@vercel/python@latest"
