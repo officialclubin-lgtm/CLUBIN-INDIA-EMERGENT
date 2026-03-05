@@ -1,27 +1,15 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "backend/server.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+  "installCommand": "cd frontend && npm install --legacy-peer-deps",
+  "buildCommand": "cd frontend && npx expo export -p web",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/*.py": {
+      "runtime": "@vercel/python@latest"
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/server.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/$1"
-    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" }
   ],
   "regions": ["bom1"]
 }
